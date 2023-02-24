@@ -1,2 +1,3 @@
-# v2g_thesis
-V2G for car sharing thesis project
+# V2G for car sharing
+
+Repository for car sharing thesis projects
