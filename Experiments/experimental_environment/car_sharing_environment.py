@@ -21,8 +21,8 @@ cancellation_penalty = 100  # CHF
 # delta t, time step size
 DT = 0.25  # h
 # episode length of one day
-EPISODE_LEN = int(24 / DT)
-# EPISODE_LEN = 12 # --> only used for test dataset
+# EPISODE_LEN = int(24 / DT)
+EPISODE_LEN = 12  # --> only used for test dataset
 
 # TODO: model some electicity price curve that (randomly) changes over the day
 electricity_price = np.ones(EPISODE_LEN)
@@ -68,20 +68,15 @@ class CarsharingEnv(gym.Env):
         self.action_space = spaces.MultiDiscrete([3 for _ in range(nr_vehicles)])
         # TODO (later): simulate the power grid demand for energy (energy expected from Mobility after bidding-phase)
 
-    def reset(self, dayly_data, vehicle_list):
+    def reset(self, dayly_data):
         # set time to 0
         self.t = 0
-        self.reward_list_trips = []
-        self.reward_list_charging = []
-        self.reward_list_discharging = []
-        self.reward_list_cancellation_penalty = []
-        self.reward_list = []
         # resets all vehicles to beginning of day
-        self.vehicles_id = vehicle_list  #
+        self.vehicles_id = dayly_data["vehicle_no"].tolist()  #
         self.nr_vehicles = len(self.vehicles_id)  # total number of cars
         car_SOC = np.random.rand(self.nr_vehicles)  # random initial charging levels
         car_locations = dayly_data.iloc[:,
-                        0].values  # location of vehicle: station number (1000-5000), or needed charging level (0-100) if start of trip,
+                        1].values  # location of vehicle: station number (1000-5000), or needed charging level (0-100) if start of trip,
         # reservation number ( x'xxx'xxx) druing trip, or -1 if car not available
 
         # create inital state
@@ -89,11 +84,8 @@ class CarsharingEnv(gym.Env):
 
         return self.state
 
-    def step(self, action, dayly_data, end_of_week):
+    def step(self, action, dayly_data):
         # TODO: check whether car is booked and update first part of state
-
-        # cars cannot be returned from trips with negative loaded battery, set them zero
-        self.state[self.nr_vehicles:][self.state[self.nr_vehicles:] < 0] = 0
 
         # get current car locations
         car_locations = dayly_data.iloc[:, self.t + 1].values
@@ -124,7 +116,7 @@ class CarsharingEnv(gym.Env):
                 # search last station of car in bookings, replace reservation number with last location
                 if t > 0:
                     car_location = dayly_data.iloc[index, t]
-                    if car_location >= 1000 and car_location <= 6000:
+                    if car_location >= 1000 and car_location <= 5000:
                         found = True
                 else:
                     # if no station back in time, set car location to -1
@@ -149,7 +141,7 @@ class CarsharingEnv(gym.Env):
         not_in_unse = self.state[:self.nr_vehicles] < 0
 
         # check if car usable for charging or discharging
-        not_chargable = (self.state[:self.nr_vehicles] < 1000) | (self.state[:self.nr_vehicles] > 6000)
+        not_chargable = (self.state[:self.nr_vehicles] < 1000) | (self.state[:self.nr_vehicles] > 5000)
 
         # update SOC according to action
         # filter charging action
@@ -169,17 +161,17 @@ class CarsharingEnv(gym.Env):
         energy_to_charge[not_chargable] = 0
         energy_to_discharge[not_chargable] = 0
         # energy loss by customer trips
-        energy_consumption_driving = np.ones((self.nr_vehicles,)) * - POWER_driving * self.dt
+        energy_consumption_driving = np.ones((5,)) * - POWER_driving * self.dt
         energy_consumption_driving[~on_trip] = 0
         # total SOC difference for each car
         energy_difference = np.add(np.add(energy_to_charge, energy_to_discharge), energy_consumption_driving)
         # update SOC state
         self.state[self.nr_vehicles:] += energy_difference / self.battery_capacities
+
         # compute reward:
         # charging costs
         rew_charging = np.sum(-1 * energy_to_charge * electricity_price[self.t % EPISODE_LEN])
         # discharging revenue
-        max_index = np.argmax(energy_to_discharge)
         rew_discharging = -np.sum(1 * energy_to_discharge * electricity_price[self.t % EPISODE_LEN])
         # trip revenue (duration + driven distance)
         on_trip_numerical = np.where(on_trip, 1, 0)
@@ -194,11 +186,7 @@ class CarsharingEnv(gym.Env):
         self.reward_list_charging.append(rew_charging)
         self.reward_list_discharging.append(rew_discharging)
         self.reward_list_cancellation_penalty.append(reward_cancellations)
-
-        if end_of_week is True:
-            done = True if self.t == (EPISODE_LEN - 2) else False
-        else:
-            done = True if self.t == (EPISODE_LEN - 1) else False
+        done = True if self.t == EPISODE_LEN else False
         # update time step
         self.t += 1
 
@@ -208,15 +196,15 @@ class CarsharingEnv(gym.Env):
         # TODO: find some way to visualize this, e.g. barplot how many vehicles are at the station, histogram how much
         # the vehicles are charged
         print(f"-------- State at time {self.t} --------")
-        # print("vehicle ID:", self.vehicles_id)
-        # print("at station:", self.state[: self.nr_vehicles])
-        # print("SOC       :", np.around(self.state[self.nr_vehicles :], 2))
+        print("vehicle ID:", self.vehicles_id)
+        print("at station:", self.state[: self.nr_vehicles])
+        print("SOC       :", np.around(self.state[self.nr_vehicles:], 2))
         timestamp = dayly_data.columns[self.t]
 
         # plot location of vehicles
         on_trip = (self.state[:self.nr_vehicles] >= 1000000) | (self.state[:self.nr_vehicles] >= 0) & (
                     self.state[:self.nr_vehicles] <= 100)
-        at_station = (self.state[:self.nr_vehicles] >= 1000) & (self.state[:self.nr_vehicles] <= 6000)
+        at_station = (self.state[:self.nr_vehicles] >= 1000) & (self.state[:self.nr_vehicles] <= 5000)
         count_trip = np.sum(on_trip == True)
         count_at_station = np.sum(at_station == True)
         categories = ["At Station", "On Trip"]
@@ -239,7 +227,7 @@ class CarsharingEnv(gym.Env):
         rew_total = sum(self.reward_list)
 
         # plot reward over time as lineplot
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots()
         ax.plot([s[-8:-3] for s in dayly_data.columns[1:]], self.reward_list)
         print([s[-8:-3] for s in dayly_data.columns[1:]])
         # Format the x-axis labels
