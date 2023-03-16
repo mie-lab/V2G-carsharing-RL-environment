@@ -3,6 +3,8 @@ import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
 
+from plotting import show_soc, my_cmap
+
 ### DEFINE CONSTANTS ###
 # power for charing car
 POWER_charge = 11  # kw
@@ -228,6 +230,22 @@ class CarsharingEnv(gym.Env):
         plt.xticks(rotation=90)
 
         plt.show()
+
+    def render_soc(self):
+        soc = self.state[self.nr_vehicles:]
+    
+        side_size = int(np.sqrt(self.nr_vehicles))
+        img_w, img_h = side_size, side_size+1
+        assert img_w * img_h > self.nr_vehicles
+        img = np.zeros((img_w * img_h, 4))
+        at_station = np.zeros(img_w * img_h)
+        at_station[:self.nr_vehicles] = self.state[:self.nr_vehicles]
+
+        img[:self.nr_vehicles] = np.array([my_cmap(val) for val in soc])
+        img[at_station < 0] = np.array([0.8, 0.8, 0.8, 1])
+        img[at_station > 10000000] = np.array([0.8, 0.2, 0.1, 1])
+        
+        show_soc(img.reshape((img_h, img_w, 4)))
 
     def episode_summary_statistics(self, dayly_data):
         # get data
