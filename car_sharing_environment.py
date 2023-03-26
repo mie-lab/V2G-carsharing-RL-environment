@@ -2,7 +2,6 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import matplotlib.pyplot as plt
-
 from plotting import show_soc, my_cmap
 
 ### DEFINE CONSTANTS ###
@@ -230,6 +229,8 @@ class CarsharingEnv(gym.Env):
         plt.xticks(rotation=90)
 
         plt.show()
+        
+        self.render_soc()
 
     def render_soc(self):
         soc = self.state[self.nr_vehicles:]
