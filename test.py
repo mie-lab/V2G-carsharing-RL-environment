@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 if __name__ == "__main__":
 
     # Create a database connection string
-    engine = create_engine('postgresql://username:password@host:port/database_name')
+	engine = create_engine('postgresql://username:password@host:port/database_name')
 
     # simulate sinlge day
     nr_iterations = 1 # number of days
