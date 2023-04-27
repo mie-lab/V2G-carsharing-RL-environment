@@ -130,3 +130,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 Master_Thesis/config/credentials.json
+Data_Preprocessing/auction_spot_prices_switzerland_2019.csv
+Data_Preprocessing/auction_spot_prices_switzerland_2020.csv
+Data_Preprocessing/EnergieUebersichtCH_2019.csv
+Data_Preprocessing/EnergieUebersichtCH_2020.csv

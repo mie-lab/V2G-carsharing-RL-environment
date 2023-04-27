@@ -25,21 +25,22 @@
   &quot;keyToString&quot;: {
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/domin/Code_Projects/MSc_Geomatics/IML_23/Introduction_to_machine_learning/Introduction_to_machine_learning&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/domin/Code_Projects/MSc_Geomatics/Semester_thesis_1/v2g_thesis/Experiments&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.tools&quot;
   }
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis" />
       <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis\Experiments" />
+      <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis\rl_v2g" />
       <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis\Experiments\1_environment" />
       <recent name="C:\Users\domin\Code_Projects\MSc_Geomatics\Semester_thesis_1\v2g_thesis\Experiments" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.test (1)">
+  <component name="RunManager" selected="Python.Unnamed">
     <configuration name="Unnamed" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
       <module name="v2g_thesis" />
       <option name="INTERPRETER_OPTIONS" value="" />

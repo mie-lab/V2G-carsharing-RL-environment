@@ -1,6 +1,5 @@
 import numpy as np
-import pandas as pd
-from car_sharing_environment import CarsharingEnv
+from rl_v2g.car_sharing_environment import CarsharingEnv
 import pandas as pd
 import math
 from sqlalchemy import create_engine
