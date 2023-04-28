@@ -4,6 +4,7 @@ from gymnasium import spaces
 import matplotlib.pyplot as plt
 import bisect
 import random
+import math
 from rl_v2g.plotting import show_soc, my_cmap
 
 
@@ -15,8 +16,8 @@ class CarsharingEnv(gym.Env):
                  v2g_probability_charging_event=0.5, v2g_probability_discharging_event=0.5,
                  v2g_morning_time_period=[6.0, 9.0, 10.75], v2g_noon_time_period=[11.0, 14.0, 16.0],
                  v2g_evening_time_period=[16.25, 19.0, 24.0],
-                 planned_bookings=True, precomputed_bookings=True, max_distance_car_assingment=5000,
-                 plot_state_histogram=True, plot_state_animation=True):
+                 planned_bookings=True, precomputed_bookings=True, max_distance_car_assingment=500,
+                 plot_state_histogram=False, plot_state_animation=False):
         """
         Initialization of simulation environment for car-sharing charging and/or vehicle-to-grid (V2G) optimization.
 
@@ -1321,7 +1322,7 @@ class CarsharingEnv(gym.Env):
         xtick_labels = ax.get_xticklabels()
         visible_tick_positions = []
         visible_tick_labels = []
-        tick_interval = len(self.date_list) // nr_ticks
+        tick_interval = math.ceil(len(self.date_list) / nr_ticks)
         visible_tick_positions = list(range(0, len(self.date_list), tick_interval))
         visible_tick_labels = [labels[i] for i in visible_tick_positions]
         plt.xticks(visible_tick_positions, visible_tick_labels, rotation=90)
@@ -1361,7 +1362,6 @@ class CarsharingEnv(gym.Env):
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot([s[-8:-3] for s in self.date_list[-(self.episode_len - 1):]],
                 self.reward_list[-(self.episode_len - 1):])
-        print([s[-8:-3] for s in self.date_list[-(self.episode_len - 1):]])
         plt.xticks(rotation=90)
         xtick_labels = ax.get_xticklabels()
         for i, label in enumerate(xtick_labels):
