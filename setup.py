@@ -20,7 +20,7 @@ setup(
     author_email=("nwiedemann@ethz.ch"),
     license="GPLv3",
     url="https://github.com/mie-lab/v2g_thesis",
-    install_requires=["numpy", "scipy", "pandas", "gymnasium", "matplotlib"],
+    install_requires=["numpy", "scipy", "pandas", "gym", "matplotlib", "geopandas"],
     classifiers=[
         "License :: OSI Approved :: MIT",
         "Intended Audience :: Science/Research",

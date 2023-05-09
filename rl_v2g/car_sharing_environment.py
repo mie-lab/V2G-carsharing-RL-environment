@@ -1,6 +1,6 @@
 import numpy as np
-import gymnasium as gym
-from gymnasium import spaces
+import gym
+from gym import spaces
 import matplotlib.pyplot as plt
 import bisect
 import random
@@ -9,7 +9,8 @@ from rl_v2g.plotting import show_soc, my_cmap
 
 
 class CarsharingEnv(gym.Env):
-    def __init__(self, stations, vehicle_information, soc_initial_low=0.5, soc_initial_high=1, max_charging_power=11,
+    def __init__(self, stations, vehicle_information, daily_data, reservations, electricity_price, timesteps_since_start, v2g_price = None, planned_reservations=None,
+              planned_durations=None, soc_initial_low=0.5, soc_initial_high=1, max_charging_power=11,
                  episode_len=24, dt=0.25, last_timestep = 55392,
                  random_seed_number=42, cancellation_penalty=100, penalty_per_kwh=0.25, v2g=True,
                  v2g_demand_event_min=500, v2g_demand_event_max=500, v2g_max_duration=3.0, v2g_penalty=10000,
@@ -17,7 +18,7 @@ class CarsharingEnv(gym.Env):
                  v2g_morning_time_period=[6.0, 9.0, 10.75], v2g_noon_time_period=[11.0, 14.0, 16.0],
                  v2g_evening_time_period=[16.25, 19.0, 24.0],
                  planned_bookings=True, precomputed_bookings=True, max_distance_car_assingment=500,
-                 plot_state_histogram=False, plot_state_animation=False):
+                 plot_state_histogram=False, plot_state_animation=False, RL = False):
         """
         Initialization of simulation environment for car-sharing charging and/or vehicle-to-grid (V2G) optimization.
 
@@ -27,6 +28,20 @@ class CarsharingEnv(gym.Env):
             Locations of car-sharing stations, including a distinct "station_no" attribute with station ID.
         vehicle_information: Pandas Dataframe
             Includes the features "vehicle_no", "charge_power", "battery_capacity", and "vehicle_category" for each car.
+        daily_data: Pandas DataFrame
+            Contains the car trips over the day.
+        reservations: Pandas DataFrame
+            Includes the features "syscreatedate_time_discrete", "vehicle_no", "reservationfrom_time_discrete", and "reservation_duration" for each reservation.
+        electricity_price: Numpy ndarray
+            Contains electricity prices for each timestamp.
+        timesteps_since_start: int
+            Timestamp since start of simulation before current day.
+        v2g_price: Numpy ndarray, optional
+            Numpy array of legngth self.episode_len containing prices in CHF per kwh, by default None.
+        planned_reservations: Pandas DataFrame, optional
+            Timestamps of next planned reservations for each car, by default None.
+        planned_durations: Pandas DataFrame, optional
+            Durations of next planned reservations for each car, by default None.
         soc_initial_low: float, optional
             Lower bound (0-1) for initial SOC used for the reset of the environment, by default 0.5.
         soc_initial_high: float, optional
@@ -83,6 +98,8 @@ class CarsharingEnv(gym.Env):
             Plot current state of enviorment as histogram or not, by default True.
         plot_state_animation: boolean, optional
             Plot current state of enviorment as animation for each car or not, by default True.
+        RL: boolean
+            Whether to environment for reinforcement learning or not.
         ----------
         Observation space: 5 parts:
         1) Location for each car (four options):
@@ -145,29 +162,60 @@ class CarsharingEnv(gym.Env):
 
         # define observation space:
         if self.planned_bookings is True:
-            self.locations_of_vehicles_space = spaces.Box(low=-1, high=5000, shape=(self.nr_vehicles,))
-            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,))
-            self.planned_reservations_space = spaces.Box(low=0, high=self.last_timestep, shape=(self.nr_vehicles,))
-            self.planned_reservation_durations_space = spaces.Box(low=0, high=self.last_timestep, shape=(self.nr_vehicles,))
-            self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,))
-            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,))
-            self.observation_space = spaces.Tuple((self.locations_of_vehicles_space, self.soc_of_vehicles_space,
-                                                   self.planned_reservations_space,
-                                                   self.planned_reservation_durations_space, self.v2g_event_space,
-                                                   self.current_time_space))
+            
+            self.locations_of_vehicles_space = spaces.Box(low=-1, high=31000000, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
+            self.planned_reservations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.planned_reservation_durations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+            self.observation_space = spaces.Dict({
+                'locations_of_vehicles': self.locations_of_vehicles_space,
+                'soc_of_vehicles': self.soc_of_vehicles_space,
+                'planned_reservations': self.planned_reservations_space,
+                'planned_reservation_durations': self.planned_reservation_durations_space,
+                'v2g_event': self.v2g_event_space,
+                'current_time': self.current_time_space
+            })
+
+            self.observation_space = spaces.Box(
+            
+                low=np.concatenate([
+                    self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
+                    self.planned_reservations_space.low, self.planned_reservation_durations_space.low,
+                    self.v2g_event_space.low, self.current_time_space.low
+                ]),
+                high=np.concatenate([
+                    self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
+                    self.planned_reservations_space.high, self.planned_reservation_durations_space.high,
+                    self.v2g_event_space.high, self.current_time_space.high
+                ]),
+                dtype=np.float64,
+                shape=(self.nr_vehicles * 4 + 2,)
+            )
 
         else:
-            self.locations_of_vehicles_space = spaces.Box(low=-1, high=5000, shape=(self.nr_vehicles,))
-            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,))
+            self.locations_of_vehicles_space = spaces.Box(low=-1, high=5000, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max,
-                                              shape=(1,))
-            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,))
-            self.observation_space = spaces.Tuple((self.locations_of_vehicles_space, self.soc_of_vehicles_space,
-                                                   self.v2g_event_space,self.current_time_space))
+                                              shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+
+            self.observation_space = spaces.Box(
+                low=np.concatenate([
+                    self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
+                    self.v2g_event_space.low, self.current_time_space.low
+                ]),
+                high=np.concatenate([
+                    self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
+                    self.v2g_event_space.high, self.current_time_space.high
+                ]),
+                dtype=np.float32,
+                shape=(self.nr_vehicles * 2 + 2,)
+            )
 
         # define action space
         self.action_space = spaces.MultiDiscrete([3 for _ in range(self.nr_vehicles)])
-
         # define state boundaries for slicing state array
         # locations upper bound
         self.locations_upper = self.nr_vehicles
@@ -200,11 +248,17 @@ class CarsharingEnv(gym.Env):
             # time, lower bound:
             self.time_lower = self.nr_vehicles * 2
 
+        # laod data
+        self.load_new_data(daily_data, reservations, electricity_price, timesteps_since_start, v2g_price, planned_reservations,
+              planned_durations)
 
-    def reset(self, daily_data, reservations, electricity_price, timesteps_since_start, v2g_price = None, planned_reservations=None,
+        # reset environment
+        self.reset()
+
+    def load_new_data(self, daily_data, reservations, electricity_price, timesteps_since_start, v2g_price = None, planned_reservations=None,
               planned_durations=None):
         """
-        Reset environment to beginning of new episode.
+        Loads data to environment of a new day
 
         Parameters
         ----------
@@ -222,6 +276,20 @@ class CarsharingEnv(gym.Env):
             Timestamps of next planned reservations for each car, by default None.
         planned_durations: Pandas DataFrame, optional
             Durations of next planned reservations for each car, by default None.
+        """
+
+        self.reset_daily_data = daily_data
+        self.reset_reservations = reservations
+        self.reset_electricity_price = electricity_price
+        self.reset_timesteps_since_start= timesteps_since_start
+        self.reset_v2g_price = v2g_price
+        self.reset_planned_reservations = planned_reservations
+        self.reset_planned_durations = planned_durations
+
+
+    def reset(self):
+        """
+        Reset environment to beginning of new episode.
 
         Returns
         ----------
@@ -241,25 +309,25 @@ class CarsharingEnv(gym.Env):
         """
 
         # assign simulation data
-        self.daily_data = daily_data
+        self.daily_data = self.reset_daily_data
 
         # assign reservation data
-        self.reservations = reservations
+        self.reservations = self.reset_reservations
 
         # assign electricity prices
-        self.electricity_price = electricity_price
+        self.electricity_price = self.reset_electricity_price
 
         # assign planned reservations and the durations
         if self.planned_bookings is True:
             if self.precomputed_bookings is True:
-                self.planned_reservations = planned_reservations
-                self.planned_durations = planned_durations
+                self.planned_reservations = self.reset_planned_reservations
+                self.planned_durations = self.reset_planned_durations
 
         # set timesteps since start of t = 0
-        self.timesteps_since_start = timesteps_since_start
+        self.timesteps_since_start = self.reset_timesteps_since_start
 
         # set time
-        self.t = timesteps_since_start
+        self.t = self.reset_timesteps_since_start
 
         # reset reward lists
         self.reward_list_trips = []
@@ -282,10 +350,10 @@ class CarsharingEnv(gym.Env):
             self.get_random_v2g_events()
 
             # assing v2g discharging event prices
-            self.v2g_price_discharging = v2g_price[0]
+            self.v2g_price_discharging = self.reset_v2g_price[0]
 
             # assing v2g charging event prices
-            self.v2g_price_charging = v2g_price[1]
+            self.v2g_price_charging = self.reset_v2g_price[1]
 
         # reset changes discrete table
         self.changed_vehicles = {}
@@ -329,13 +397,33 @@ class CarsharingEnv(gym.Env):
             self.state = np.concatenate(
                 [car_locations, car_SOC, next_reservation, duration_next_reservation, v2g_event, current_time])
 
+            #state = {
+            #    'locations_of_vehicles': self.state[:self.locations_upper],
+            #    'soc_of_vehicles': self.state[self.locations_upper:self.soc_upper],
+            #    'planned_reservations': self.state[self.soc_upper:self.reservation_time_upper],
+            #    'planned_reservation_durations': self.state[self.reservation_time_upper:self.v2g_lower],
+            #    'v2g_event': self.state[self.v2g_lower:self.v2g_upper],
+            #    'current_time': self.state[self.v2g_upper:]
+            #}
+
         else:
 
             # concatinate states 1-5 without planned boookings (state 3,4)
             self.state = np.concatenate([car_locations, car_SOC, v2g_event, current_time])
+            # transform to dict:
+            #state = {
+            #   'locations_of_vehicles': self.state[:self.locations_upper],
+            #   'soc_of_vehicles': self.state[self.locations_upper:self.soc_upper],
+            #    'v2g_event': self.state[self.v2g_lower:self.v2g_upper],
+            #    'current_time': self.state[self.v2g_upper:]
+            #}
 
         # save energy at beginning of episode (for reward calculation)
         self.energy_beginning = sum(car_SOC * self.battery_capacities)
+
+        print("Reset environment to timestamp: ", self.timesteps_since_start)
+
+
 
         return self.state
 
@@ -626,6 +714,10 @@ class CarsharingEnv(gym.Env):
                 print(self.vehicles_id[index])
                 print("Reservation_number")
                 print(self.state[index])
+                print("SOC")
+                print(self.state[self.nr_vehicles+index])
+                print("SOC needed")
+                print(soc_needed[index])
                 continue
 
             # get start location of trip
@@ -883,7 +975,7 @@ class CarsharingEnv(gym.Env):
 
         return
 
-    def compute_reward(self, energy_to_charge, energy_to_discharge, penalty_counter):
+    def compute_monetary_reward(self, energy_to_charge, energy_to_discharge, penalty_counter):
         """
         Computes reward at current timestep.
 
@@ -1067,8 +1159,8 @@ class CarsharingEnv(gym.Env):
                 self.state[self.reservation_time_upper:self.v2g_lower] = duration_next_reservation
 
         # SOC needs to be positive or equal to zero
-        assert len(self.state[self.locations_upper:self.soc_upper][
-                       self.state[self.locations_upper:self.soc_upper] < 0]) == 0, "Vehicle SOC is wrong."
+        #assert len(self.state[self.locations_upper:self.soc_upper][
+        #              self.state[self.locations_upper:self.soc_upper] < 0]) == 0, "Vehicle SOC is wrong."
 
         # get current car locations
         car_locations = self.daily_data.iloc[:, self.t + 1 - int(
@@ -1193,19 +1285,19 @@ class CarsharingEnv(gym.Env):
         # check if car usable for charging or discharging
         not_chargable = (self.state[:self.locations_upper] < 1000) | (self.state[:self.locations_upper] > 6000)
 
-        # calculate energy needed for charging and discharging
+        # calculate energy needed for charging and discharging and update state
         energy_to_charge = self.charging(action, not_chargable)
-        energy_to_discharge = self.discharging(action, not_chargable)
-
-        # cacluate total SOC difference for each car
-        energy_difference = np.add(energy_to_charge, energy_to_discharge)
-
-        # update SOC state
+        energy_to_discharge = None
         self.update_SOC_charging(energy_to_charge)
-        self.update_SOC_discharging(energy_to_discharge)
+        if self.state[self.v2g_lower:self.v2g_upper] > 0:
+            energy_to_discharge = self.discharging(action, not_chargable)
+            self.update_SOC_discharging(energy_to_discharge)
+
+        # set negative SOC to zero (number can get negative in the order of e-18 because of floating number imprecision)
+        self.state[self.locations_upper:self.soc_upper] = np.maximum(self.state[self.locations_upper:self.soc_upper], 0)
 
         # compute reward
-        rew = self.compute_reward(energy_to_charge, energy_to_discharge, penalty_counter)
+        rew = self.compute_monetary_reward(energy_to_charge, energy_to_discharge, penalty_counter)
 
         # add timestamp to date list
         self.date_list.append(self.daily_data.columns[self.t + 1 - int(
@@ -1239,6 +1331,8 @@ class CarsharingEnv(gym.Env):
         # update time state
         self.state[self.v2g_upper:] = self.t + 1
 
+        print("Timestep: ", self.t, " Reward: ", rew, " CHF")
+
         # update time step
         self.t += 1
 
@@ -1247,6 +1341,26 @@ class CarsharingEnv(gym.Env):
             self.render_state_histogram()
         if self.plot_state_animation:
             self.render_animation()
+
+        #if self.planned_bookings is True:
+        #    # transform to dict:
+        #    state = {
+        #        'locations_of_vehicles': self.state[:self.locations_upper],
+        #        'soc_of_vehicles': self.state[self.locations_upper:self.soc_upper],
+        #        'planned_reservations': self.state[self.soc_upper:self.reservation_time_upper],
+        #        'planned_reservation_durations': self.state[self.reservation_time_upper:self.v2g_lower],
+        #        'v2g_event': self.state[self.v2g_lower:self.v2g_upper],
+        #        'current_time': self.state[self.v2g_upper:]
+        #    }
+        #else:
+        #    # transform to dict:
+        #    state = {
+        #        'locations_of_vehicles': self.state[:self.locations_upper],
+        #        'soc_of_vehicles': self.state[self.locations_upper:self.soc_upper],
+        #        'v2g_event': self.state[self.v2g_lower:self.v2g_upper],
+        #        'current_time': self.state[self.v2g_upper:]
+        #    }
+#
 
         return self.state, rew, done, {}
 
