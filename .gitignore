@@ -134,3 +134,11 @@ Data_Preprocessing/auction_spot_prices_switzerland_2019.csv
 Data_Preprocessing/auction_spot_prices_switzerland_2020.csv
 Data_Preprocessing/EnergieUebersichtCH_2019.csv
 Data_Preprocessing/EnergieUebersichtCH_2020.csv
+Master_Thesis/Enviorment_Master_Thesis_V2G_clean_new_version_5.ipynb
+Master_Thesis/rl_v2g/utils.py
+Master_Thesis/rl_v2g/plotting.py
+Master_Thesis/rl_v2g/car_sharing_environment_patched_1.py
+Master_Thesis/rl_v2g/car_sharing_environment_ORIGINAL.py
+Master_Thesis/rl_v2g/car_sharing_environment.py.bak
+Master_Thesis/rl_v2g/car_sharing_environment.py
+Master_Thesis/rl_v2g/__init__.py

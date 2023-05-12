@@ -1069,11 +1069,11 @@ class CarsharingEnv(gym.Env):
         v2g_reward = 0
         if self.state[self.v2g_lower:self.v2g_upper] > 0:
             v2g_reward = self.v2g_price_discharging[self.t - int(
-            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len] * abs(sum(energy_to_discharge))
+            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len] * min(abs(sum(energy_to_discharge)), abs(self.state[self.v2g_lower:self.v2g_upper]))
 
         if self.state[self.v2g_lower:self.v2g_upper] < 0:
             v2g_reward = self.v2g_price_charging[self.t - int(
-            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len] * abs(sum(energy_to_charge))
+            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len] * min(abs(sum(energy_to_charge)), abs(self.state[self.v2g_lower:self.v2g_upper]))
 
         # penalty if not enough energy discharged for V2G morning event during timestamp (discharging event)
         if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) < self.episode_len / 2 and abs(sum(energy_to_discharge)) < self.v2g_demand_event[0]:
@@ -1140,6 +1140,18 @@ class CarsharingEnv(gym.Env):
         done: Boolean
             True if end of current episode.
         """
+        
+        # do all actions
+        # check if car usable for charging or discharging
+        not_chargable = (self.state[:self.locations_upper] < 1000) | (self.state[:self.locations_upper] > 6000)
+
+        # calculate energy needed for charging and discharging and update state
+        energy_to_charge = self.charging(action, not_chargable)
+        energy_to_discharge = None
+        self.update_SOC_charging(energy_to_charge)
+        if self.state[self.v2g_lower:self.v2g_upper] > 0:
+            energy_to_discharge = self.discharging(action, not_chargable)
+            self.update_SOC_discharging(energy_to_discharge)
 
         # save current state
         self.state_old = self.state.copy()
@@ -1286,16 +1298,11 @@ class CarsharingEnv(gym.Env):
         # cancel reservations if SOC to low for booked trip, update SOC for cars on trip, and calculate cancellation penalty factor
         penalty_counter = self.cancel_trips_low_SOC()
 
-        # check if car usable for charging or discharging
-        not_chargable = (self.state[:self.locations_upper] < 1000) | (self.state[:self.locations_upper] > 6000)
-
-        # calculate energy needed for charging and discharging and update state
-        energy_to_charge = self.charging(action, not_chargable)
-        energy_to_discharge = None
-        self.update_SOC_charging(energy_to_charge)
-        if self.state[self.v2g_lower:self.v2g_upper] > 0:
-            energy_to_discharge = self.discharging(action, not_chargable)
-            self.update_SOC_discharging(energy_to_discharge)
+       
+    
+    
+    
+    
 
         # set negative SOC to zero (number can get negative in the order of e-18 because of floating number imprecision)
         self.state[self.locations_upper:self.soc_upper] = np.maximum(self.state[self.locations_upper:self.soc_upper], 0)
