@@ -12,12 +12,12 @@ class CarsharingEnv(gym.Env):
     def __init__(self, stations, vehicle_information, daily_data, reservations, electricity_price, timesteps_since_start, v2g_price = None, planned_reservations=None,
               planned_durations=None, soc_initial_low=0.5, soc_initial_high=1, max_charging_power=11,
                  episode_len=24, dt=0.25, last_timestep = 55392,
-                 random_seed_number=42, cancellation_penalty=100, penalty_per_kwh=0.25, v2g=True,
-                 v2g_demand_event_min=500, v2g_demand_event_max=500, v2g_max_duration=3.0, v2g_penalty=10000,
+                 random_seed_number=122, cancellation_penalty=100, penalty_per_kwh=0.0, v2g=True,
+                 v2g_demand_event_min=500, v2g_demand_event_max=500, v2g_max_duration=2.0, v2g_penalty=499,
                  v2g_probability_charging_event=0.5, v2g_probability_discharging_event=0.5,
-                 v2g_morning_time_period=[6.0, 9.0, 10.75], v2g_noon_time_period=[11.0, 14.0, 16.0],
-                 v2g_evening_time_period=[16.25, 19.0, 24.0],
-                 planned_bookings=True, precomputed_bookings=True, max_distance_car_assingment=500,
+                 v2g_morning_time_period=[6.0, 9.0, 11.00], v2g_noon_time_period=[11.25, 14.0, 15.75],
+                 v2g_evening_time_period=[16.0, 20.0, 22.0],
+                 planned_bookings=True, precomputed_bookings=True, max_distance_car_assingment=1000,
                  plot_state_histogram=False, plot_state_animation=False, RL = False):
         """
         Initialization of simulation environment for car-sharing charging and/or vehicle-to-grid (V2G) optimization.
@@ -540,6 +540,10 @@ class CarsharingEnv(gym.Env):
 
             # get energy to deliver in kwh
             self.v2g_demand_event[2] = random.uniform(self.v2g_demand_event_min, self.v2g_demand_event_max)
+            
+        
+            
+        
 
         return
 
@@ -1309,6 +1313,7 @@ class CarsharingEnv(gym.Env):
                     self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len >= self.v2g_discharing_morning_start and self.t + 1 - int(
                     self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len < self.v2g_discharing_morning_end:
                 self.state[self.v2g_lower:self.v2g_upper] = self.v2g_demand_event[0]
+       
 
             elif self.t + 2 - int(
                     self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len >= self.v2g_charing_noon_start and self.t + 1 - int(
@@ -1318,10 +1323,11 @@ class CarsharingEnv(gym.Env):
             elif self.t + 2 - int(
                     self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len >= self.v2g_discharing_evening_start and self.t + 1 - int(
                     self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len < self.v2g_discharing_evening_end:
-                self.state[self.v2g_lower:self.v2g_upper] = 1
+                self.state[self.v2g_lower:self.v2g_upper] = self.v2g_demand_event[2]
+                
 
             else:
-                self.state[self.v2g_lower:self.v2g_upper] = self.v2g_demand_event[2]
+                self.state[self.v2g_lower:self.v2g_upper] = 0
 
         # stop if day is over
         done = True if self.t - int(
@@ -1330,8 +1336,6 @@ class CarsharingEnv(gym.Env):
 
         # update time state
         self.state[self.v2g_upper:] = self.t + 1
-
-        print("Timestep: ", self.t, " Reward: ", rew, " CHF")
 
         # update time step
         self.t += 1
@@ -1361,6 +1365,7 @@ class CarsharingEnv(gym.Env):
         #        'current_time': self.state[self.v2g_upper:]
         #    }
 #
+
 
         return self.state, rew, done, {}
 
