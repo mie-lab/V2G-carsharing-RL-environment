@@ -130,6 +130,7 @@ class CarsharingEnv(gym.Env):
         self.plot_state_animation = plot_state_animation
         self.random_seed_number = random_seed_number
         self.last_timestep = last_timestep
+        self.RL = RL
 
         # stations in system
         self.stations = stations
@@ -161,14 +162,48 @@ class CarsharingEnv(gym.Env):
         self.penalty_per_kwh = penalty_per_kwh
 
         # define observation space:
-        if self.planned_bookings is True:
+        if self.planned_bookings and self.RL:
             
-            self.locations_of_vehicles_space = spaces.Box(low=-1, high=31000000, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.locations_of_vehicles_space = spaces.Box(low=-1, high=31000000, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
+#             self.planned_reservations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.planned_reservation_durations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,), dtype=np.float64)
+#             self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+#             self.observation_space = spaces.Dict({
+#                 'locations_of_vehicles': self.locations_of_vehicles_space,
+#                 'soc_of_vehicles': self.soc_of_vehicles_space,
+#                 'planned_reservations': self.planned_reservations_space,
+#                 'planned_reservation_durations': self.planned_reservation_durations_space,
+#                 'v2g_event': self.v2g_event_space,
+#                 'current_time': self.current_time_space
+#             })
+
+#             self.observation_space = spaces.Box(
+            
+#                 low=np.concatenate([
+#                     self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
+#                     self.planned_reservations_space.low, self.planned_reservation_durations_space.low,
+#                     self.v2g_event_space.low, self.current_time_space.low
+#                 ]),
+#                 high=np.concatenate([
+#                     self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
+#                     self.planned_reservations_space.high, self.planned_reservation_durations_space.high,
+#                     self.v2g_event_space.high, self.current_time_space.high
+#                 ]),
+#                 dtype=np.float64,
+#                 shape=(self.nr_vehicles * 4 + 2,)
+#             )
+            
+            
+            
+            
+            self.locations_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
-            self.planned_reservations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
-            self.planned_reservation_durations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
-            self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,), dtype=np.float64)
-            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+            self.planned_reservations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.planned_reservation_durations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.v2g_event_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
             self.observation_space = spaces.Dict({
                 'locations_of_vehicles': self.locations_of_vehicles_space,
                 'soc_of_vehicles': self.soc_of_vehicles_space,
@@ -193,13 +228,18 @@ class CarsharingEnv(gym.Env):
                 dtype=np.float64,
                 shape=(self.nr_vehicles * 4 + 2,)
             )
+            
+            
+            
+            
+            
 
-        else:
-            self.locations_of_vehicles_space = spaces.Box(low=-1, high=5000, shape=(self.nr_vehicles,), dtype=np.float64)
+        elif self.RL:
+            self.locations_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max,
+            self.v2g_event_space = spaces.Box(low=0, high=1,
                                               shape=(1,), dtype=np.float64)
-            self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
 
             self.observation_space = spaces.Box(
                 low=np.concatenate([
@@ -223,7 +263,7 @@ class CarsharingEnv(gym.Env):
         # soc upper bound
         self.soc_upper = 2 * self.nr_vehicles
 
-        if planned_bookings is True:
+        if self.planned_bookings is True:
 
             # planned reservations, upper bound:
             self.reservation_time_upper = self.nr_vehicles * 3
@@ -285,6 +325,24 @@ class CarsharingEnv(gym.Env):
         self.reset_v2g_price = v2g_price
         self.reset_planned_reservations = planned_reservations
         self.reset_planned_durations = planned_durations
+
+    def normalize_location(self, location):
+        location[location > 6000] = 7000
+        return (location + 1) / (7000 + 1)
+
+    def normalize_planned_reservations(self, planned_reservation):
+        planned_reservation[planned_reservation < 0] = self.last_timestep + 500
+        return (planned_reservation - 0) / ((self.last_timestep + 500) - 0)
+
+    def normalize_planned_durations(self, planned_durations):
+        planned_durations[planned_durations < 0] = 0
+        return (planned_durations - 0) / ((self.last_timestep) - 0)
+
+    def normalize_v2g_events(self, v2g):
+        return (v2g + self.v2g_demand_event_max) / (self.v2g_demand_event_max + self.v2g_demand_event_max)
+
+    def normalize_time(self, time):
+        return (time - 0) / (95 - 0)
 
 
     def reset(self):
@@ -421,7 +479,7 @@ class CarsharingEnv(gym.Env):
         # save energy at beginning of episode (for reward calculation)
         self.energy_beginning = sum(car_SOC * self.battery_capacities)
 
-        print("Reset environment to timestamp: ", self.timesteps_since_start)
+        #print("Reset environment to timestamp: ", self.timesteps_since_start)
 
 
 
@@ -1081,7 +1139,7 @@ class CarsharingEnv(gym.Env):
 
         # penalty if not enough energy discharged for V2G morning event during timestamp (discharging event)
         if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) < self.episode_len / 2 and abs(sum(energy_to_discharge)) < self.v2g_demand_event[0]:
-            v2g_reward -= self.v2g_penalty
+            v2g_reward -= self.v2g_penalty 
 
         # penalty if not enough energy charged for V2G during timestamp (charging event)
         if self.state[self.v2g_lower:self.v2g_upper] < 0 and sum(energy_to_charge) < abs(self.v2g_demand_event[1]):
@@ -1114,6 +1172,20 @@ class CarsharingEnv(gym.Env):
 
         # total reward
         rew = rew_charging + sum_reward_trip + reward_cancellations + rew_energy_difference + cancelled_revenue + v2g_reward
+        print("charging")
+        print(rew_charging)
+        print("trips")
+        print(sum_reward_trip)
+        print("cancellations")
+        print(reward_cancellations)
+        print("rew_energy_difference")
+        print(rew_energy_difference)
+        print("cancelled_revenue")
+        print(cancelled_revenue)
+        print("v2g_reward")
+        print(v2g_reward)
+        print("rew")
+        print(rew)
 
         # save rewards for summary analysis
         self.reward_list.append(rew)
@@ -1145,7 +1217,10 @@ class CarsharingEnv(gym.Env):
         done: Boolean
             True if end of current episode.
         """
-        
+        print("")
+        print(self.t +1)
+        print(action)
+
         # do all actions
         # check if car usable for charging or discharging
         not_chargable = (self.state[:self.locations_upper] < 1000) | (self.state[:self.locations_upper] > 6000)
@@ -1345,7 +1420,7 @@ class CarsharingEnv(gym.Env):
                                    self.episode_len - 2) else False
 
         # update time state
-        self.state[self.v2g_upper:] = self.t + 1
+        self.state[self.v2g_upper:] = self.t + 1 - self.timesteps_since_start
 
         # update time step
         self.t += 1
@@ -1375,9 +1450,23 @@ class CarsharingEnv(gym.Env):
         #        'current_time': self.state[self.v2g_upper:]
         #    }
 #
+        current_state = self.state.copy()
+        print(self.state)
+
+        if self.RL and self.planned_bookings: 
+            current_state[:self.locations_upper] = self.normalize_location(current_state[:self.locations_upper])
+            current_state[self.soc_upper:self.reservation_time_upper] = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
+            current_state[self.reservation_time_upper:self.v2g_lower] = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
+            current_state[self.v2g_lower:self.v2g_upper] = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            current_state[self.v2g_upper:] = self.normalize_time(current_state[self.v2g_upper:])
+        elif self.RL:
+            current_state[:self.locations_upper] = self.normalize_location(current_state[:self.locations_upper])
+            current_state[self.v2g_lower:self.v2g_upper] = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            current_state[self.v2g_upper:] = self.normalize_time(current_state[self.v2g_upper:])
+            
 
 
-        return self.state, rew, done, {}
+        return current_state, rew, done, {}
 
     def render_state_histogram(self):
         """
