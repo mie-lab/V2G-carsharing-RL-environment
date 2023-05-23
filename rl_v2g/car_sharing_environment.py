@@ -327,8 +327,8 @@ class CarsharingEnv(gym.Env):
         self.reset_planned_durations = planned_durations
 
     def normalize_location(self, location):
-        location[location > 6000] = 7000
-        return (location + 1) / (7000 + 1)
+        location[location > 6000] = -1
+        return (location + 1) / (6000 + 1)
 
     def normalize_planned_reservations(self, planned_reservation):
         planned_reservation[planned_reservation < 0] = self.last_timestep + 500
@@ -1138,17 +1138,17 @@ class CarsharingEnv(gym.Env):
                  v2g_reward = self.v2g_price_charging[self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len] * min(abs(sum(energy_to_charge)), abs(self.state[self.v2g_lower:self.v2g_upper]))
 
         # penalty if not enough energy discharged for V2G morning event during timestamp (discharging event)
-        if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) < self.episode_len / 2 and abs(sum(energy_to_discharge)) < self.v2g_demand_event[0]:
-            v2g_reward -= self.v2g_penalty 
+        if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) < self.episode_len / 2 and abs(sum(energy_to_discharge)) < abs(self.v2g_demand_event[0]):
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_discharge)) / self.v2g_demand_event[0]))
 
         # penalty if not enough energy charged for V2G during timestamp (charging event)
         if self.state[self.v2g_lower:self.v2g_upper] < 0 and sum(energy_to_charge) < abs(self.v2g_demand_event[1]):
-            v2g_reward -= self.v2g_penalty
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_charge)) / abs(self.v2g_demand_event[1])))
 
         # penalty if not enough energy discharged for V2G evening event during timestamp (discharging event)
         if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(
-            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) > self.episode_len / 2 and abs(sum(energy_to_discharge)) < self.v2g_demand_event[2]:
-            v2g_reward -= self.v2g_penalty
+            self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) > self.episode_len / 2 and abs(sum(energy_to_discharge)) < abs(self.v2g_demand_event[2]):
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_discharge)) / self.v2g_demand_event[2]))
 
         # reward from reservations, where customer don't show up (0 km driven distance)
         cancelled_revenue = self.reservations[
@@ -1172,20 +1172,20 @@ class CarsharingEnv(gym.Env):
 
         # total reward
         rew = rew_charging + sum_reward_trip + reward_cancellations + rew_energy_difference + cancelled_revenue + v2g_reward
-        print("charging")
-        print(rew_charging)
-        print("trips")
-        print(sum_reward_trip)
-        print("cancellations")
-        print(reward_cancellations)
-        print("rew_energy_difference")
-        print(rew_energy_difference)
-        print("cancelled_revenue")
-        print(cancelled_revenue)
-        print("v2g_reward")
-        print(v2g_reward)
-        print("rew")
-        print(rew)
+        #print("charging")
+       # print(rew_charging)
+        #print("trips")
+        #print(sum_reward_trip)
+      #  print("cancellations")
+     #   print(reward_cancellations)
+     #   print("rew_energy_difference")
+    #    print(rew_energy_difference)
+    #    print("cancelled_revenue")
+    #    print(cancelled_revenue)
+     ##   print("v2g_reward")
+      #  print(v2g_reward)
+     # #  print("rew")
+     #   print(rew)
 
         # save rewards for summary analysis
         self.reward_list.append(rew)
@@ -1217,9 +1217,9 @@ class CarsharingEnv(gym.Env):
         done: Boolean
             True if end of current episode.
         """
-        print("")
-        print(self.t +1)
-        print(action)
+        #print("")
+        ##print(self.t +1)
+        #print(action)
 
         # do all actions
         # check if car usable for charging or discharging
@@ -1451,7 +1451,7 @@ class CarsharingEnv(gym.Env):
         #    }
 #
         current_state = self.state.copy()
-        print(self.state)
+        #print(self.state)
 
         if self.RL and self.planned_bookings: 
             current_state[:self.locations_upper] = self.normalize_location(current_state[:self.locations_upper])
