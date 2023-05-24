@@ -4,7 +4,6 @@ from gym import spaces
 import matplotlib.pyplot as plt
 import bisect
 import random
-import pandas as pd
 import math
 from rl_v2g.plotting import show_soc, my_cmap
 
@@ -199,36 +198,35 @@ class CarsharingEnv(gym.Env):
             
             
             
-            self.locations_of_vehicles_space_x = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            self.locations_of_vehicles_space_y = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.locations_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
             self.planned_reservations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.planned_reservation_durations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.v2g_event_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
             self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
-            #self.observation_space = spaces.Dict({
-            #    'locations_of_vehicles': self.locations_of_vehicles_space,
-            #    'soc_of_vehicles': self.soc_of_vehicles_space,
-            #    'planned_reservations': self.planned_reservations_space,
-            #    'planned_reservation_durations': self.planned_reservation_durations_space,
-            #    'v2g_event': self.v2g_event_space,
-            #    'current_time': self.current_time_space
-            #})
+            self.observation_space = spaces.Dict({
+                'locations_of_vehicles': self.locations_of_vehicles_space,
+                'soc_of_vehicles': self.soc_of_vehicles_space,
+                'planned_reservations': self.planned_reservations_space,
+                'planned_reservation_durations': self.planned_reservation_durations_space,
+                'v2g_event': self.v2g_event_space,
+                'current_time': self.current_time_space
+            })
 
             self.observation_space = spaces.Box(
             
                 low=np.concatenate([
-                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low, self.soc_of_vehicles_space.low,
+                    self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
                     self.planned_reservations_space.low, self.planned_reservation_durations_space.low,
                     self.v2g_event_space.low, self.current_time_space.low
                 ]),
                 high=np.concatenate([
-                    self.locations_of_vehicles_space_x.high, self.locations_of_vehicles_space_y.high, self.soc_of_vehicles_space.high,
+                    self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
                     self.planned_reservations_space.high, self.planned_reservation_durations_space.high,
                     self.v2g_event_space.high, self.current_time_space.high
                 ]),
                 dtype=np.float64,
-                shape=(self.nr_vehicles * 5 + 2,)
+                shape=(self.nr_vehicles * 4 + 2,)
             )
             
             
@@ -237,8 +235,7 @@ class CarsharingEnv(gym.Env):
             
 
         elif self.RL:
-            self.locations_of_vehicles_space_x = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            self.locations_of_vehicles_space_y = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.locations_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
             self.v2g_event_space = spaces.Box(low=0, high=1,
                                               shape=(1,), dtype=np.float64)
@@ -246,15 +243,15 @@ class CarsharingEnv(gym.Env):
 
             self.observation_space = spaces.Box(
                 low=np.concatenate([
-                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low,  self.soc_of_vehicles_space.low,
+                    self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
                     self.v2g_event_space.low, self.current_time_space.low
                 ]),
                 high=np.concatenate([
-                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low,  self.soc_of_vehicles_space.high,
+                    self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
                     self.v2g_event_space.high, self.current_time_space.high
                 ]),
                 dtype=np.float32,
-                shape=(self.nr_vehicles * 3 + 2,)
+                shape=(self.nr_vehicles * 2 + 2,)
             )
 
         # define action space
@@ -328,27 +325,18 @@ class CarsharingEnv(gym.Env):
         self.reset_v2g_price = v2g_price
         self.reset_planned_reservations = planned_reservations
         self.reset_planned_durations = planned_durations
-        
-    def normalize_location_x(self, location_x):
-        return (location_x -  1000000) / (2817342.7839138974 - 1000000)
-    
-    def normalize_location_y(self, location_y):
-        return (location_y -  0) / (1284313.7693009912 - 0)
 
     def normalize_location(self, location):
         location[location > 6000] = -1
         return (location + 1) / (6000 + 1)
 
     def normalize_planned_reservations(self, planned_reservation):
-        planned_reservation[planned_reservation > 150] = 150
-
-        planned_reservation[planned_reservation < 0] = 150
-        return (planned_reservation - 0) / (150  - 0)
+        planned_reservation[planned_reservation < 0] = self.last_timestep + 500
+        return (planned_reservation - 0) / ((self.last_timestep + 500) - 0)
 
     def normalize_planned_durations(self, planned_durations):
         planned_durations[planned_durations < 0] = 0
-        planned_durations[planned_durations > 672] = 672
-        return (planned_durations - 0) / (672 - 0)
+        return (planned_durations - 0) / ((self.last_timestep) - 0)
 
     def normalize_v2g_events(self, v2g):
         return (v2g + self.v2g_demand_event_max) / (self.v2g_demand_event_max + self.v2g_demand_event_max)
@@ -492,45 +480,10 @@ class CarsharingEnv(gym.Env):
         self.energy_beginning = sum(car_SOC * self.battery_capacities)
 
         #print("Reset environment to timestamp: ", self.timesteps_since_start)
-        
-        current_state = self.state.copy() 
-        #print(self.state)
-        current_state[self.soc_upper:self.reservation_time_upper] = current_state[self.soc_upper:self.reservation_time_upper] - self.reset_timesteps_since_start
 
-        if self.RL and self.planned_bookings: 
-            
-            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
-            x_array = coordinates_car['x'].values
-            y_array = coordinates_car['y'].values
-            x_array = np.nan_to_num(x_array, nan=1000000)
-            y_array = np.nan_to_num(y_array, nan=0)
-            x_array = np.squeeze(x_array) 
-            y_array = np.squeeze(y_array)
 
-            state_x = self.normalize_location_x(x_array)
-            state_y = self.normalize_location_y(y_array)
-            state_next_booking = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
-            state_duration = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
-            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
-            state_time = self.normalize_time(current_state[self.v2g_upper:])
-            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_next_booking, state_duration, state_v2g, state_time])
-            
-        elif self.RL:
-            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
-            x_array = coordinates_car['x'].values
-            y_array = coordinates_car['y'].values
-            x_array = np.nan_to_num(x_array, nan=1000000)
-            y_array = np.nan_to_num(y_array, nan=0)
-            x_array = np.squeeze(x_array)
-            y_array = np.squeeze(y_array)
-            state_x = self.normalize_location_x(x_array)
-            state_y = self.normalize_location_y(y_array)
-            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
-            state_time = self.normalize_time(current_state[self.v2g_upper:])
-            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
-            
 
-        return current_state
+        return self.state
 
 
     def next_day(self, daily_data, reservations, electricity_price, timesteps_since_start, v2g_price = None, planned_reservations=None,
@@ -1497,41 +1450,19 @@ class CarsharingEnv(gym.Env):
         #        'current_time': self.state[self.v2g_upper:]
         #    }
 #
-        current_state = self.state.copy() 
+        current_state = self.state.copy()
         #print(self.state)
-        current_state[self.soc_upper:self.reservation_time_upper] = current_state[self.soc_upper:self.reservation_time_upper] - self.reset_timesteps_since_start
 
         if self.RL and self.planned_bookings: 
-            
-            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
-            x_array = coordinates_car['x'].values
-            y_array = coordinates_car['y'].values
-            x_array = np.nan_to_num(x_array, nan=1000000)
-            y_array = np.nan_to_num(y_array, nan=0)
-            x_array = np.squeeze(x_array) 
-            y_array = np.squeeze(y_array)
-
-            state_x = self.normalize_location_x(x_array)
-            state_y = self.normalize_location_y(y_array)
-            state_next_booking = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
-            state_duration = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
-            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
-            state_time = self.normalize_time(current_state[self.v2g_upper:])
-            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_next_booking, state_duration, state_v2g, state_time])
-            
+            current_state[:self.locations_upper] = self.normalize_location(current_state[:self.locations_upper])
+            current_state[self.soc_upper:self.reservation_time_upper] = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
+            current_state[self.reservation_time_upper:self.v2g_lower] = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
+            current_state[self.v2g_lower:self.v2g_upper] = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            current_state[self.v2g_upper:] = self.normalize_time(current_state[self.v2g_upper:])
         elif self.RL:
-            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
-            x_array = coordinates_car['x'].values
-            y_array = coordinates_car['y'].values
-            x_array = np.nan_to_num(x_array, nan=1000000)
-            y_array = np.nan_to_num(y_array, nan=0)
-            x_array = np.squeeze(x_array)
-            y_array = np.squeeze(y_array)
-            state_x = self.normalize_location_x(x_array)
-            state_y = self.normalize_location_y(y_array)
-            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
-            state_time = self.normalize_time(current_state[self.v2g_upper:])
-            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
+            current_state[:self.locations_upper] = self.normalize_location(current_state[:self.locations_upper])
+            current_state[self.v2g_lower:self.v2g_upper] = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            current_state[self.v2g_upper:] = self.normalize_time(current_state[self.v2g_upper:])
             
 
 
