@@ -12,13 +12,20 @@ from rl_v2g.plotting import show_soc, my_cmap
 class CarsharingEnv(gym.Env):
     def __init__(self, stations, vehicle_information, daily_data, reservations, electricity_price, timesteps_since_start,
                  planned_bookings=False, precomputed_bookings=True, planned_reservations=None, planned_durations=None,
-                 location_state = "binary", normalize_state = False, random_seed_number=122, episode_len=24, dt=0.25,
-                 last_timestep = 55392, max_charging_power=11, soc_initial_low=0.5, soc_initial_high=1,
-                 max_distance_car_assignment=1000, penalty_per_kwh=0.0, cancellation_penalty=100, v2g=True,
-                 v2g_price = None, v2g_demand_event_min=500, v2g_demand_event_max=500, v2g_max_duration=2.0,
-                 v2g_penalty=499, v2g_penalty_quantity_dependent = False, v2g_probability_charging_event=0.5, v2g_probability_discharging_event=0.5,
+                 binary_location = True, coordinate_location = False, station_id_location=False, normalize_state = False,
+    random_seed_number=122,
+                 episode_len=24, dt=0.25, last_timestep = 55392, max_charging_power=11, soc_initial_low=0.5,
+                 soc_initial_high=1, max_distance_car_assingment=1000, penalty_per_kwh=0.0, cancellation_penalty=100,
+
+                 v2g_price = None,
+                  v2g=True,
+                 v2g_demand_event_min=500, v2g_demand_event_max=500, v2g_max_duration=2.0, v2g_penalty=499,
+                 v2g_probability_charging_event=0.5, v2g_probability_discharging_event=0.5,
                  v2g_morning_time_period=[6.0, 9.0, 11.00], v2g_noon_time_period=[11.25, 14.0, 15.75],
-                 v2g_evening_time_period=[16.0, 20.0, 22.0], plot_state_histogram=False, plot_state_animation=False):
+                 v2g_evening_time_period=[16.0, 20.0, 22.0],
+
+                plot_state_histogram=False,
+                 plot_state_animation=False, ):
         """
         Initialization of simulation environment for car-sharing charging and/or vehicle-to-grid (V2G) optimization.
 
@@ -92,8 +99,8 @@ class CarsharingEnv(gym.Env):
             Boolean indicating whether there are planned bookings in the environment; otherwise, all bookings are spontaneous, by default True.
         precomputed_bookings: boolean, optional
             Boolean indicating whether the planned bookings in the environment are precomputed (for massive speed up), by default True.
-        max_distance_car_assignment: int, optional
-            Maximum search distance in meter for car-assignment problem, by default 5000.
+        max_distance_car_assingment: int, optional
+            Maximum search distance in meter for car-assingment problem, by default 5000.
         plot_state_histogram: boolean, optional
             Plot current state of enviorment as histogram or not, by default True.
         plot_state_animation: boolean, optional
@@ -125,13 +132,13 @@ class CarsharingEnv(gym.Env):
         self.episode_len = int(episode_len / self.dt)
         self.planned_bookings = planned_bookings
         self.precomputed_bookings = precomputed_bookings
-        self.max_distance_car_assignment = max_distance_car_assignment
+        self.max_distance_car_assingment = max_distance_car_assingment
         self.plot_state_histogram = plot_state_histogram
         self.plot_state_animation = plot_state_animation
         self.random_seed_number = random_seed_number
         self.last_timestep = last_timestep
-        self.normalize_state = normalize_state
-        self.location_state = location_state
+        self.RL = RL
+        self.binary_location = binary_location
 
         # stations in system
         self.stations = stations
@@ -139,7 +146,7 @@ class CarsharingEnv(gym.Env):
         # vehicle information
         self.vehicles_id = vehicle_information["vehicle_no"]
         self.nr_vehicles = len(self.vehicles_id)
-        self.charging_power = np.full_like(vehicle_information["charge_power"],
+        self.chariging_power = np.full_like(vehicle_information["charge_power"],
                                             np.minimum(vehicle_information["charge_power"], max_charging_power))
         self.battery_capacities = vehicle_information["battery_capacity"]
         self.vehicle_type = vehicle_information["vehicle_category"]
@@ -152,7 +159,6 @@ class CarsharingEnv(gym.Env):
         self.v2g_demand_event_max = v2g_demand_event_max
         self.v2g_max_duration = v2g_max_duration / self.dt
         self.v2g_penalty = v2g_penalty
-        self.v2g_penalty_quantity_dependent = v2g_penalty_quantity_dependent
         self.v2g_probability_charging_event = v2g_probability_charging_event
         self.v2g_probability_discharging_event = v2g_probability_discharging_event
         self.v2g_morning_time_period = v2g_morning_time_period
@@ -163,84 +169,120 @@ class CarsharingEnv(gym.Env):
         self.cancellation_penalty = cancellation_penalty
         self.penalty_per_kwh = penalty_per_kwh
 
-        ### define observation space ###
-        observation_space = {}
-        space_dim = 0
+        # define observation space:
+        if self.planned_bookings and self.RL:
+            
+#             self.locations_of_vehicles_space = spaces.Box(low=-1, high=31000000, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
+#             self.planned_reservations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.planned_reservation_durations_space = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
+#             self.v2g_event_space = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,), dtype=np.float64)
+#             self.current_time_space = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
+#             self.observation_space = spaces.Dict({
+#                 'locations_of_vehicles': self.locations_of_vehicles_space,
+#                 'soc_of_vehicles': self.soc_of_vehicles_space,
+#                 'planned_reservations': self.planned_reservations_space,
+#                 'planned_reservation_durations': self.planned_reservation_durations_space,
+#                 'v2g_event': self.v2g_event_space,
+#                 'current_time': self.current_time_space
+#             })
 
-        # add location to state
-        # option of binary location state(at station = 1, not at station = 0)
-        if self.location_state == "binary":
-            observation_space["locations_of_vehicles"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            space_dim += self.nr_vehicles
+#             self.observation_space = spaces.Box(
+            
+#                 low=np.concatenate([
+#                     self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.low,
+#                     self.planned_reservations_space.low, self.planned_reservation_durations_space.low,
+#                     self.v2g_event_space.low, self.current_time_space.low
+#                 ]),
+#                 high=np.concatenate([
+#                     self.locations_of_vehicles_space.high, self.soc_of_vehicles_space.high,
+#                     self.planned_reservations_space.high, self.planned_reservation_durations_space.high,
+#                     self.v2g_event_space.high, self.current_time_space.high
+#                 ]),
+#                 dtype=np.float64,
+#                 shape=(self.nr_vehicles * 4 + 2,)
+#             )
+            
+            
+            
+            
+            self.locations_of_vehicles_space_x = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.locations_of_vehicles_space_y = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),dtype=np.float64)
+            self.planned_reservations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.planned_reservation_durations_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.v2g_event_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
+            #self.observation_space = spaces.Dict({
+            #    'locations_of_vehicles': self.locations_of_vehicles_space,
+            #    'soc_of_vehicles': self.soc_of_vehicles_space,
+            #    'planned_reservations': self.planned_reservations_space,
+            #    'planned_reservation_durations': self.planned_reservation_durations_space,
+            #    'v2g_event': self.v2g_event_space,
+            #    'current_time': self.current_time_space
+            #})
 
-        # option of stationid as location state (four possibilities)
-        # Station number (1000-5000)
-        # Reservation number (2x'xxx'xxx) during trip
-        # Reservation number (3x'xxx'xxx) during relocation
-        # -1 if car is not available
-        elif self.location_state == "station_id" and self.normalize_state is True:
-            observation_space["locations_of_vehicles"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),
-                                                                    dtype=np.float64)
-            space_dim += self.nr_vehicles
-        elif self.location_state == "station_id":
-            observation_space["locations_of_vehicles"] = spaces.Box(low=-1, high=31000000, shape=(self.nr_vehicles,),
-                                                                    dtype=np.float64)
-            space_dim += self.nr_vehicles
-        # option of using geocoordinates as location state
-        elif self.location_state == "geocoordinates" and self.normalize_state is True:
-            observation_space["locations_of_vehicles_x"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            observation_space["locations_of_vehicles_y"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            space_dim += self.nr_vehicles * 2
-        elif self.location_state == "geocoordinates":
-            observation_space["locations_of_vehicles_x"] = spaces.Box(low=2484437, high=2835831, shape=(self.nr_vehicles,), dtype=np.float64)
-            observation_space["locations_of_vehicles_y"] = spaces.Box(low=1074561, high=1299185, shape=(self.nr_vehicles,), dtype=np.float64)
-            space_dim += self.nr_vehicles * 2
-
-
-        # add vehicle's SOC to observation space
-        observation_space["soc_of_vehicles"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,),
-                                                              dtype=np.float64)
-        space_dim += self.nr_vehicles
-
-        # option for adding vehicle's planned bookings to observation space
-        if self.planned_bookings and self.normalize_state:
-            observation_space["planned_reservations"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            observation_space["planned_reservation_durations"] = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
-            space_dim += self.nr_vehicles * 2
-        elif self.planned_bookings:
-            observation_space["planned_reservations"] = spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
-            observation_space["planned_reservation_durations"]= spaces.Box(low=-1, high=self.last_timestep, shape=(self.nr_vehicles,), dtype=np.float64)
-            space_dim += self.nr_vehicles * 2
-
-        # add V2G events and current time to observation space
-        if self.normalize_state:
-            observation_space["v2g_event"] = spaces.Box(low=0, high=1,
+            self.observation_space = spaces.Box(
+            
+                low=np.concatenate([
+                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low, self.soc_of_vehicles_space.low,
+                    self.planned_reservations_space.low, self.planned_reservation_durations_space.low,
+                    self.v2g_event_space.low, self.current_time_space.low
+                ]),
+                high=np.concatenate([
+                    self.locations_of_vehicles_space_x.high, self.locations_of_vehicles_space_y.high, self.soc_of_vehicles_space.high,
+                    self.planned_reservations_space.high, self.planned_reservation_durations_space.high,
+                    self.v2g_event_space.high, self.current_time_space.high
+                ]),
+                dtype=np.float64,
+                shape=(self.nr_vehicles * 5 + 2,)
+            )
+            
+            
+            
+        elif self.RL and self.binary_location:
+            self.locations_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.v2g_event_space = spaces.Box(low=0, high=1,
                                               shape=(1,), dtype=np.float64)
-            observation_space["current_time"] = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
-            space_dim += 2
-        else:
-            observation_space["v2g_event"] = spaces.Box(low=-self.v2g_demand_event_max, high=self.v2g_demand_event_max, shape=(1,), dtype=np.float64)
-            observation_space["current_time"] = spaces.Box(low=0, high=self.last_timestep, shape=(1,), dtype=np.float64)
-            space_dim += 2
+            self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
 
-        # Concatenate the low and high values of each component
-        low_values = []
-        high_values = []
+            self.observation_space = spaces.Box(
+                low=np.concatenate([
+                    self.locations_of_vehicles_space.low , self.soc_of_vehicles_space.low,
+                    self.v2g_event_space.low, self.current_time_space.low
+                ]),
+                high=np.concatenate([
+                    self.locations_of_vehicles_space.low, self.soc_of_vehicles_space.high,
+                    self.v2g_event_space.high, self.current_time_space.high
+                ]),
+                dtype=np.float64,
+                shape=(self.nr_vehicles * 2 + 2,)
+            )
 
-        for component in observation_space.values():
-            low_values.append(component.low)
-            high_values.append(component.high)
+            
+            
 
-        low = np.concatenate(low_values)
-        high = np.concatenate(high_values)
+        elif self.RL:
+            self.locations_of_vehicles_space_x = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.locations_of_vehicles_space_y = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.soc_of_vehicles_space = spaces.Box(low=0, high=1, shape=(self.nr_vehicles,), dtype=np.float64)
+            self.v2g_event_space = spaces.Box(low=0, high=1,
+                                              shape=(1,), dtype=np.float64)
+            self.current_time_space = spaces.Box(low=0, high=1, shape=(1,), dtype=np.float64)
 
-        # Create the final observation space box
-        self.observation_space = spaces.Box(
-            low=low,
-            high=high,
-            dtype=np.float64,
-            shape=(space_dim,)
-        )
+            self.observation_space = spaces.Box(
+                low=np.concatenate([
+                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low,  self.soc_of_vehicles_space.low,
+                    self.v2g_event_space.low, self.current_time_space.low
+                ]),
+                high=np.concatenate([
+                    self.locations_of_vehicles_space_x.low, self.locations_of_vehicles_space_y.low,  self.soc_of_vehicles_space.high,
+                    self.v2g_event_space.high, self.current_time_space.high
+                ]),
+                dtype=np.float64,
+                shape=(self.nr_vehicles * 3 + 2,)
+            )
 
         # define action space
         self.action_space = spaces.MultiDiscrete([3 for _ in range(self.nr_vehicles)])
@@ -478,75 +520,52 @@ class CarsharingEnv(gym.Env):
         self.energy_beginning = sum(car_SOC * self.battery_capacities)
 
         #print("Reset environment to timestamp: ", self.timesteps_since_start)
-        state = self.transfrom_state()
-
-        return state
         
+        current_state = self.state.copy() 
+        #print(self.state)
 
 
-    def transfrom_state(self):
-        current_state = self.state.copy()
-        # print(self.state)
+        if self.RL and self.planned_bookings: 
+            current_state[self.soc_upper:self.reservation_time_upper] = current_state[self.soc_upper:self.reservation_time_upper] - self.reset_timesteps_since_start
+            
+            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
+            x_array = coordinates_car['x'].values
+            y_array = coordinates_car['y'].values
+            x_array = np.nan_to_num(x_array, nan=1000000)
+            y_array = np.nan_to_num(y_array, nan=0)
+            x_array = np.squeeze(x_array) 
+            y_array = np.squeeze(y_array)
 
-        ### define observation space ###
-        state_elements = []
-        space_dim = 0
-
-        # add location to state
-        if self.location_state == "binary":
+            state_x = self.normalize_location_x(x_array)
+            state_y = self.normalize_location_y(y_array)
+            state_next_booking = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
+            state_duration = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
+            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_next_booking, state_duration, state_v2g, state_time])
+            
+        elif self.RL and self.binary_location:
             location = current_state[:self.locations_upper]
             location[location > 6000] = 0
             location[location > 0] = 1
-            state_elements.append(location)
-
-        elif self.location_state == "station_id":
-            location = current_state[:self.locations_upper]
-            if self.normalize_state is True:
-                location = self.normalize_location(location)
-            state_elements.append(location)
-
-        elif self.location_state == "geocoordinates":
-            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']),
-                                       self.stations, on='station_no', how='left')
+            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([location, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
+            
+        elif self.RL:
+            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
             x_array = coordinates_car['x'].values
             y_array = coordinates_car['y'].values
             x_array = np.nan_to_num(x_array, nan=1000000)
             y_array = np.nan_to_num(y_array, nan=0)
             x_array = np.squeeze(x_array)
             y_array = np.squeeze(y_array)
-
-            if self.normalize_state is True:
-                x_array = self.normalize_location_x(x_array)
-                y_array = self.normalize_location_y(y_array)
-
-            state_elements.append(x_array)
-            state_elements.append(y_array)
-
-        state_elements.append(current_state[self.locations_upper:self.soc_upper])
-
-        if self.planned_bookings:
-            state_next_booking = current_state[self.soc_upper:self.reservation_time_upper]
-            state_duration = current_state[self.reservation_time_upper:self.v2g_lower]
-
-            if self.normalize_state is True:
-                state_next_booking = self.normalize_planned_reservations(state_next_booking)
-                state_duration = self.normalize_planned_durations(state_duration)
-
-            state_elements.append(state_next_booking)
-            state_elements.append(state_duration)
-
-        if self.normalize_state:
+            state_x = self.normalize_location_x(x_array)
+            state_y = self.normalize_location_y(y_array)
             state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
-            state_time = self.normalize_time(current_state[self.v2g_upper:] - self.reset_timesteps_since_start)
-        else:
-            state_v2g = current_state[self.v2g_lower:self.v2g_upper]
-            state_time = current_state[self.v2g_upper:] - self.reset_timesteps_since_start
-
-        state_elements.append(state_v2g)
-        state_elements.append(state_time)
-
-        current_state = np.concatenate(state_elements)
-
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
+            
         return current_state
 
 
@@ -663,6 +682,10 @@ class CarsharingEnv(gym.Env):
 
             # get energy to deliver in kwh
             self.v2g_demand_event[2] = random.uniform(self.v2g_demand_event_min, self.v2g_demand_event_max)
+            
+        
+            
+        
 
         return
 
@@ -924,8 +947,8 @@ class CarsharingEnv(gym.Env):
         # get car type of cancelled car
         car_type_cancelled = self.vehicle_type[index_car]
 
-        # query spatial index to get all geometries within distance of self.max_distance_car_assignment
-        neighbours = list(self.stations.sindex.query(station["geom"].iloc[0].buffer(self.max_distance_car_assignment),
+        # query spatial index to get all geometries within distance of self.max_distance_car_assingment
+        neighbours = list(self.stations.sindex.query(station["geom"].iloc[0].buffer(self.max_distance_car_assingment),
                                                      predicate='intersects'))
 
         # create a new dataframe with only the stations within the specified distance
@@ -971,7 +994,7 @@ class CarsharingEnv(gym.Env):
                     changed = False
 
                     # calculate distance weighted penalty (zero if car aviailable at the same station)
-                    penalty = row['distance'] / self.max_distance_car_assignment
+                    penalty = row['distance'] / self.max_distance_car_assingment
 
                     # update future simulation of found car
                     if index in self.changed_vehicles:
@@ -1023,7 +1046,7 @@ class CarsharingEnv(gym.Env):
         charging_action[action == 1] = 1
 
         # energy (in kWh) charged per vehicle:
-        energy_to_charge = charging_action * self.charging_power.tolist() * self.dt
+        energy_to_charge = charging_action * self.chariging_power.tolist() * self.dt
 
         # get current SOC
         currently_charged = self.battery_capacities.tolist() * self.state[self.locations_upper:self.soc_upper]
@@ -1057,7 +1080,7 @@ class CarsharingEnv(gym.Env):
         discharging_action[action == 2] = 1
 
         # energy (in kWh) discharged per vehicle:
-        energy_to_discharge = discharging_action * self.charging_power.tolist() * self.dt
+        energy_to_discharge = discharging_action * self.chariging_power.tolist() * self.dt
 
         # can only discharge until battery is empty
         currently_charged = self.battery_capacities.tolist() * self.state[self.locations_upper:self.soc_upper]
@@ -1200,28 +1223,16 @@ class CarsharingEnv(gym.Env):
 
         # penalty if not enough energy discharged for V2G morning event during timestamp (discharging event)
         if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) < self.episode_len / 2 and abs(sum(energy_to_discharge)) < abs(self.v2g_demand_event[0]):
-            if self.v2g_penalty_quantity_dependent:
-                factor = (abs(sum(energy_to_discharge)) / self.v2g_demand_event[0])
-            else:
-                factor = 0
-            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * factor)
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_discharge)) / self.v2g_demand_event[0]))
 
         # penalty if not enough energy charged for V2G during timestamp (charging event)
         if self.state[self.v2g_lower:self.v2g_upper] < 0 and sum(energy_to_charge) < abs(self.v2g_demand_event[1]):
-            if self.v2g_penalty_quantity_dependent:
-                factor = (abs(sum(energy_to_charge)) / abs(self.v2g_demand_event[1]))
-            else:
-                factor = 0
-            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * factor)
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_charge)) / abs(self.v2g_demand_event[1])))
 
         # penalty if not enough energy discharged for V2G evening event during timestamp (discharging event)
         if self.state[self.v2g_lower:self.v2g_upper] > 0 and (self.t - int(
             self.timesteps_since_start / self.episode_len) * self.episode_len + self.timesteps_since_start % self.episode_len) > self.episode_len / 2 and abs(sum(energy_to_discharge)) < abs(self.v2g_demand_event[2]):
-            if self.v2g_penalty_quantity_dependent:
-                factor = (abs(sum(energy_to_discharge)) / self.v2g_demand_event[2])
-            else:
-                factor = 0
-            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * factor)
+            v2g_reward -= (self.v2g_penalty - self.v2g_penalty * (abs(sum(energy_to_discharge)) / self.v2g_demand_event[2]))
 
         # reward from reservations, where customer don't show up (0 km driven distance)
         cancelled_revenue = self.reservations[
@@ -1341,8 +1352,8 @@ class CarsharingEnv(gym.Env):
         # update state of car locations
         self.state[:self.locations_upper] = car_locations
 
-        # update locations using saved changes in location through car assignment
-        # iterate over cars with a location change through car assignment
+        # update locations using saved changes in location through car assingment
+        # iterate over cars with a location change through car assingment
         changed_reservations = {}
         for index, change in self.changed_vehicles.copy().items():
 
@@ -1414,7 +1425,7 @@ class CarsharingEnv(gym.Env):
                 # get duration of trip
                 drive_duration = reservations_of_car["drive_duration"].iloc[0]
 
-                # save reservation infromations for later car assignment
+                # save reservation infromations for later car assingment
                 changed_reservations[index] = (
                 car_location, soc_needed, reservation_no, reservation_duration, drive_duration)
 
@@ -1523,12 +1534,56 @@ class CarsharingEnv(gym.Env):
         #        'current_time': self.state[self.v2g_upper:]
         #    }
 #
-        state = self.transfrom_state()
+        current_state = self.state.copy() 
+
+        
+        
+        if self.RL and self.planned_bookings:
+            current_state[self.soc_upper:self.reservation_time_upper] = current_state[self.soc_upper:self.reservation_time_upper] - self.reset_timesteps_since_start
+            
+            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
+            x_array = coordinates_car['x'].values
+            y_array = coordinates_car['y'].values
+            x_array = np.nan_to_num(x_array, nan=1000000)
+            y_array = np.nan_to_num(y_array, nan=0)
+            x_array = np.squeeze(x_array) 
+            y_array = np.squeeze(y_array)
+
+            state_x = self.normalize_location_x(x_array)
+            state_y = self.normalize_location_y(y_array)
+            state_next_booking = self.normalize_planned_reservations(current_state[self.soc_upper:self.reservation_time_upper])
+            state_duration = self.normalize_planned_durations(current_state[self.reservation_time_upper:self.v2g_lower])
+            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_next_booking, state_duration, state_v2g, state_time])
+        
+        elif self.RL and self.binary_location:
+            location = current_state[:self.locations_upper]
+            location[location > 6000] = 0
+            location[location > 0] = 1
+            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([location, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
+
+        elif self.RL:
+            coordinates_car = pd.merge(pd.DataFrame(current_state[:self.locations_upper], columns=['station_no']), self.stations, on='station_no', how='left')
+            x_array = coordinates_car['x'].values
+            y_array = coordinates_car['y'].values
+            x_array = np.nan_to_num(x_array, nan=1000000)
+            y_array = np.nan_to_num(y_array, nan=0)
+            x_array = np.squeeze(x_array)
+            y_array = np.squeeze(y_array)
+            state_x = self.normalize_location_x(x_array)
+            state_y = self.normalize_location_y(y_array)
+            state_v2g = self.normalize_v2g_events(current_state[self.v2g_lower:self.v2g_upper])
+            state_time = self.normalize_time(current_state[self.v2g_upper:])
+            current_state = np.concatenate([state_x, state_y, current_state[self.locations_upper:self.soc_upper], state_v2g, state_time])
+        
 
             
 
 
-        return state, rew, done, {}
+        return current_state, rew, done, {}
 
     def render_state_histogram(self):
         """
