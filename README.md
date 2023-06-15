@@ -45,7 +45,7 @@ Updates agent's observations of car-sharing system vehicle <br />
 • Planned bookings<br />
 • Required V2G energy demand for the next timestep<br />
 <br />
-A tutorial is can be found here: [simulation_tutorial.ipynb](https://github.com/mie-lab/v2g_thesis/blob/main/simulation_tutorial.ipynb).
+A tutorial is can be found here: [simulation_tutorial.ipynb](https://github.com/mie-lab/v2g_thesis/blob/main/simulation_tutorial.ipynb.
 
 ## Optimization using Reinforcement Learning and Heuristic Methods
 As part of the project, a deep reinforcement learning (RL) algorithm called A2C [2] and a heuristic-based method were developed for testing the simulation software. A realistic case study was conducted to evaluate both charging algorithms at the same time. The RL algorithm was trained and fine-tuned using independent days within the time period from 1st August 2019 to 11th March 2019, treating each day as an independent episode. The hyperparameters of the heuristic method were also tuned using the same time period. The case study was performed on a small vehicle fleet of fifteen cars, for reducing computationally costs. Afterwards, both algorithms were tested for generalization performance using two weeks from 12th March 2019 to 26th March 2019 to estimate the expected reward on independent data.
