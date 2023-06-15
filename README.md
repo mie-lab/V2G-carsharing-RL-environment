@@ -43,8 +43,26 @@ Updates agent's observations of car-sharing system vehicle <br />
 A tutorial is can be found here: [simulation_tutorial.ipynb](https://github.com/mie-lab/v2g_thesis/blob/main/simulation_tutorial.ipynb).
 
 ## Optimization using Reinforcement Learning and Heuristic Methods
-As part of the project, a deep reinforcement learning (RL) algorithm called A2C2 and a heuristic-based method were developed for testing the simulation software. A realistic case study was conducted to evaluate both charging algorithms at the same time. The RL algorithm was trained and fine-tuned using independent days within the time period from 1st August 2019 to 11th March 2019, treating each day as an independent episode. The hyperparameters of the heuristic method were also tuned using the same time period. The case study was performed on a small vehicle fleet of fifteen cars, for reducing computationally costs. Afterwards, both algorithms were tested for generalization performance using two weeks from 12th March 2019 to 26th March 2019 to estimate the expected reward on independent data.
-![Alt text](Plots/high_level_architecture.png)
+As part of the project, a deep reinforcement learning (RL) algorithm called A2C [2] and a heuristic-based method were developed for testing the simulation software. A realistic case study was conducted to evaluate both charging algorithms at the same time. The RL algorithm was trained and fine-tuned using independent days within the time period from 1st August 2019 to 11th March 2019, treating each day as an independent episode. The hyperparameters of the heuristic method were also tuned using the same time period. The case study was performed on a small vehicle fleet of fifteen cars, for reducing computationally costs. Afterwards, both algorithms were tested for generalization performance using two weeks from 12th March 2019 to 26th March 2019 to estimate the expected reward on independent data.
+
+![Alt text](Plots/results_case_study.png)
+
 In the figure above, the left graph illustrates the average daily reward obtained through independent simulations for each day (each day is newly initialized). The heuristic method demonstrated superior performance, outperforming even the RL approach, although the RL approach still exceeded a randomly sampled strategy significantly. On the right side, the figure represents the reward achieved through continuous simulation over the two weeks. Notably, the RL algorithm exhibited robust generalization capabilities for long-term application, despite being trained on episodes of only 24 hours. Both plots indicate a decline in reward obtained by the RL approach as the number of trained days increases, which could be attributed to overfitting.<br />
 <br />
 The analysis as part of a tutorial can be found here: [reinforcement_learning_tutorial.ipynb](https://github.com/mie-lab/v2g_thesis/blob/main/reinforcement_learning_tutorial.ipynb)).
+
+
+## Conclusion and Outlook
+• The software has proven to be a valuable tool for developing and 
+testing charging strategies in car-sharing systems<br />
+• RL approaches have shown significant potential for charging 
+optimization. More extensive feature selection and fine-tuning of the 
+A2C algorithm may lead to near-optimal charging strategies<br />
+• The high computational costs of RL algorithms, especially when 
+simulating large vehicle fleets, present a significant drawback that 
+necessitates further research to address this challenge<br />
+
+
+## References
+[1] Brockman, G., Cheung, V., Pettersson, L., Schneider, J., Schulman, J., Tang, J., & Zaremba, W. (2016). OpenAI Gym [Computer software]. https://gym.openai.com/<br />
+[2] Mnih, V., Puigdomènech Badia, A., Mirza, M., Graves, A., Lillicrap, T. P., Harley, T., Silver, D., &  Kavukcuoglu, K. (2016). Asynchronous Methods for Deep Reinforcement Learning. arXiv preprint arXiv:1602.01783.<br />
