@@ -143,3 +143,5 @@ Master_Thesis/rl_v2g/car_sharing_environment.py.bak
 Master_Thesis/rl_v2g/car_sharing_environment.py
 Master_Thesis/rl_v2g/__init__.py
 car_sharing_v2g_model1.zip
+*.gz
+*.csv
